@@ -15,6 +15,7 @@ import type { Command } from "commander";
 import { registerCliCommands } from "./cli.js";
 import { handleSlashCommand } from "./commands/slash.js";
 import { loadOnboardConfig } from "./onboard/config.js";
+import { registerRuntimeContext } from "./runtime-context.js";
 
 // ---------------------------------------------------------------------------
 // OpenClaw Plugin SDK compatible types (mirrors openclaw/plugin-sdk)
@@ -129,7 +130,7 @@ export interface OpenClawPluginApi {
   registerProvider: (provider: ProviderPlugin) => void;
   registerService: (service: PluginService) => void;
   resolvePath: (input: string) => string;
-  on: (hookName: string, handler: (...args: unknown[]) => void) => void;
+  on: (hookName: string, handler: (...args: unknown[]) => Promise<unknown>) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -177,12 +178,14 @@ export function getPluginConfig(api: OpenClawPluginApi): NemoClawConfig {
 // ---------------------------------------------------------------------------
 
 export default function register(api: OpenClawPluginApi): void {
+  const pluginConfig = getPluginConfig(api);
+
   // 1. Register /nemoclaw slash command (chat interface)
   api.registerCommand({
     name: "nemoclaw",
-    description: "NemoClaw sandbox management (status, eject).",
+    description: "NemoClaw sandbox status, restrictions, and rollback.",
     acceptsArgs: true,
-    handler: (ctx) => handleSlashCommand(ctx, api),
+    handler: (ctx) => handleSlashCommand(ctx, api, pluginConfig),
   });
 
   // 2. Register `openclaw nemoclaw` CLI subcommands (commander.js)
@@ -193,7 +196,10 @@ export default function register(api: OpenClawPluginApi): void {
     { commands: ["nemoclaw"] },
   );
 
-  // 3. Register nvidia-nim provider — use onboard config if available
+  // 3. Inject live OpenShell sandbox restrictions into agent turns.
+  registerRuntimeContext(api, pluginConfig);
+
+  // 4. Register nvidia-nim provider — use onboard config if available
   const onboardCfg = loadOnboardConfig();
   const providerCredentialEnv = onboardCfg?.credentialEnv ?? "NVIDIA_API_KEY";
   const providerLabel = onboardCfg

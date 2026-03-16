@@ -7,6 +7,7 @@ exports.default = register;
 const cli_js_1 = require("./cli.js");
 const slash_js_1 = require("./commands/slash.js");
 const config_js_1 = require("./onboard/config.js");
+const runtime_context_js_1 = require("./runtime-context.js");
 const DEFAULT_PLUGIN_CONFIG = {
     blueprintVersion: "latest",
     blueprintRegistry: "ghcr.io/nvidia/nemoclaw-blueprint",
@@ -34,18 +35,21 @@ function getPluginConfig(api) {
 // Plugin entry point
 // ---------------------------------------------------------------------------
 function register(api) {
+    const pluginConfig = getPluginConfig(api);
     // 1. Register /nemoclaw slash command (chat interface)
     api.registerCommand({
         name: "nemoclaw",
-        description: "NemoClaw sandbox management (status, eject).",
+        description: "NemoClaw sandbox status, restrictions, and rollback.",
         acceptsArgs: true,
-        handler: (ctx) => (0, slash_js_1.handleSlashCommand)(ctx, api),
+        handler: (ctx) => (0, slash_js_1.handleSlashCommand)(ctx, api, pluginConfig),
     });
     // 2. Register `openclaw nemoclaw` CLI subcommands (commander.js)
     api.registerCli((cliCtx) => {
         (0, cli_js_1.registerCliCommands)(cliCtx, api);
     }, { commands: ["nemoclaw"] });
-    // 3. Register nvidia-nim provider — use onboard config if available
+    // 3. Inject live OpenShell sandbox restrictions into agent turns.
+    (0, runtime_context_js_1.registerRuntimeContext)(api, pluginConfig);
+    // 4. Register nvidia-nim provider — use onboard config if available
     const onboardCfg = (0, config_js_1.loadOnboardConfig)();
     const providerCredentialEnv = onboardCfg?.credentialEnv ?? "NVIDIA_API_KEY";
     const providerLabel = onboardCfg

@@ -113,7 +113,7 @@ export interface OpenClawPluginApi {
     registerProvider: (provider: ProviderPlugin) => void;
     registerService: (service: PluginService) => void;
     resolvePath: (input: string) => string;
-    on: (hookName: string, handler: (...args: unknown[]) => void) => void;
+    on: (hookName: string, handler: (...args: unknown[]) => Promise<unknown>) => void;
 }
 export interface NemoClawConfig {
     blueprintVersion: string;

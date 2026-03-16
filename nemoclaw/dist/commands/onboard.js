@@ -71,7 +71,10 @@ function isNonInteractive(opts) {
     return true;
 }
 function endpointRequiresApiKey(endpointType) {
-    return endpointType === "build" || endpointType === "ncp" || endpointType === "nim-local" || endpointType === "custom";
+    return (endpointType === "build" ||
+        endpointType === "ncp" ||
+        endpointType === "nim-local" ||
+        endpointType === "custom");
 }
 function defaultCredentialForEndpoint(endpointType) {
     switch (endpointType) {
@@ -188,7 +191,8 @@ async function cliOnboard(opts) {
         case "ncp":
             ncpPartner = opts.ncpPartner ?? (await (0, prompt_js_1.promptInput)("NCP partner name"));
             endpointUrl =
-                opts.endpointUrl ?? (await (0, prompt_js_1.promptInput)("NCP endpoint URL (e.g., https://partner.api.nvidia.com/v1)"));
+                opts.endpointUrl ??
+                    (await (0, prompt_js_1.promptInput)("NCP endpoint URL (e.g., https://partner.api.nvidia.com/v1)"));
             break;
         case "nim-local":
             endpointUrl =

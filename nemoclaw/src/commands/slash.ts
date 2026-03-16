@@ -10,19 +10,26 @@
  *   /nemoclaw          - show help
  */
 
-import type { PluginCommandContext, PluginCommandResult, OpenClawPluginApi } from "../index.js";
+import type {
+  PluginCommandContext,
+  PluginCommandResult,
+  OpenClawPluginApi,
+  NemoClawConfig,
+} from "../index.js";
 import { loadState } from "../blueprint/state.js";
 import { loadOnboardConfig } from "../onboard/config.js";
+import { getRuntimeSummary } from "../runtime-context.js";
 
 export function handleSlashCommand(
   ctx: PluginCommandContext,
   _api: OpenClawPluginApi,
-): PluginCommandResult {
+  pluginConfig: NemoClawConfig,
+): PluginCommandResult | Promise<PluginCommandResult> {
   const subcommand = ctx.args?.trim().split(/\s+/)[0] ?? "";
 
   switch (subcommand) {
     case "status":
-      return slashStatus();
+      return slashStatus(pluginConfig);
     case "eject":
       return slashEject();
     case "onboard":
@@ -37,10 +44,14 @@ function slashHelp(): PluginCommandResult {
     text: [
       "**NemoClaw**",
       "",
+      "OpenClaw runs inside an OpenShell sandbox.",
+      "Expect sandboxed filesystem/process access and deny-by-default outbound network.",
+      "Use `openshell term` to watch policy approvals or denials live.",
+      "",
       "Usage: `/nemoclaw <subcommand>`",
       "",
       "Subcommands:",
-      "  `status`  - Show sandbox, blueprint, and inference state",
+      "  `status`  - Show sandbox, blueprint, and live restriction summary",
       "  `eject`   - Show rollback instructions",
       "  `onboard` - Show onboarding status and instructions",
       "",
@@ -54,12 +65,23 @@ function slashHelp(): PluginCommandResult {
   };
 }
 
-function slashStatus(): PluginCommandResult {
+async function slashStatus(pluginConfig: NemoClawConfig): Promise<PluginCommandResult> {
   const state = loadState();
+  const runtime = await getRuntimeSummary(pluginConfig);
 
   if (!state.lastAction) {
     return {
-      text: "**NemoClaw**: No operations performed yet. Run `openclaw nemoclaw launch` or `openclaw nemoclaw migrate` to get started.",
+      text: [
+        "**NemoClaw**: No operations performed yet.",
+        "Run `openclaw nemoclaw launch` or `openclaw nemoclaw migrate` to get started.",
+        "",
+        `Sandbox: ${runtime.sandboxName}`,
+        runtime.sandboxPhase ? `Phase: ${runtime.sandboxPhase}` : null,
+        "Restrictions:",
+        ...runtime.networkLines.slice(0, 2).map((line) => `- ${line}`),
+      ]
+        .filter(Boolean)
+        .join("\n"),
     };
   }
 
@@ -70,7 +92,12 @@ function slashStatus(): PluginCommandResult {
     `Blueprint: ${state.blueprintVersion ?? "unknown"}`,
     `Run ID: ${state.lastRunId ?? "none"}`,
     `Sandbox: ${state.sandboxName ?? "none"}`,
+    runtime.sandboxPhase ? `Phase: ${runtime.sandboxPhase}` : null,
     `Updated: ${state.updatedAt}`,
+    "",
+    "Restrictions:",
+    ...runtime.networkLines.map((line) => `- ${line}`),
+    ...runtime.filesystemLines.map((line) => `- ${line}`),
   ];
 
   if (state.migrationSnapshot) {
