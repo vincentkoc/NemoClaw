@@ -179,6 +179,39 @@ get_vram_mb() {
 }
 
 install_or_upgrade_ollama() {
+  # IMPORTANT: set OLLAMA_INSTALL_SHA256 to a trusted SHA-256 before running.
+  # Obtain this value through an out-of-band trusted channel and update when
+  # the upstream installer changes.
+  local OLLAMA_INSTALL_URL="https://ollama.com/install.sh"
+  local OLLAMA_INSTALL_SHA256="${OLLAMA_INSTALL_SHA256:-}"
+
+  run_verified_ollama_installer() {
+    local tmp actual_hash
+    [[ -n "$OLLAMA_INSTALL_SHA256" ]] || error "OLLAMA_INSTALL_SHA256 is not set. Refusing to execute an unverified installer from ${OLLAMA_INSTALL_URL}."
+
+    tmp="$(mktemp)"
+    curl -fsSL "$OLLAMA_INSTALL_URL" -o "$tmp" \
+      || { rm -f "$tmp"; error "Failed to download Ollama installer"; }
+
+    if command_exists sha256sum; then
+      actual_hash="$(sha256sum "$tmp" | awk '{print $1}')"
+    elif command_exists shasum; then
+      actual_hash="$(shasum -a 256 "$tmp" | awk '{print $1}')"
+    else
+      rm -f "$tmp"
+      error "No SHA-256 tool found (sha256sum/shasum). Cannot verify Ollama installer integrity."
+    fi
+
+    if [[ "$actual_hash" != "$OLLAMA_INSTALL_SHA256" ]]; then
+      rm -f "$tmp"
+      error "Ollama installer integrity check failed\n  Expected: $OLLAMA_INSTALL_SHA256\n  Actual:   $actual_hash"
+    fi
+
+    info "Ollama installer integrity verified"
+    sh "$tmp"
+    rm -f "$tmp"
+  }
+
   if detect_gpu && command_exists ollama; then
     local current
     current=$(get_ollama_version)
@@ -186,14 +219,14 @@ install_or_upgrade_ollama() {
       info "Ollama v${current} meets minimum requirement (>= v${OLLAMA_MIN_VERSION})"
     else
       info "Ollama v${current:-unknown} is below v${OLLAMA_MIN_VERSION} — upgrading…"
-      curl -fsSL https://ollama.com/install.sh | sh
+      run_verified_ollama_installer
       info "Ollama upgraded to $(get_ollama_version)"
     fi
   else
     # No ollama — only install if a GPU is present
     if detect_gpu; then
       info "GPU detected — installing Ollama…"
-      curl -fsSL https://ollama.com/install.sh | sh
+      run_verified_ollama_installer
       info "Ollama installed: v$(get_ollama_version)"
     else
       warn "No GPU detected — skipping Ollama installation."
