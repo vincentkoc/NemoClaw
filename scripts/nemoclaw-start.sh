@@ -46,7 +46,7 @@ gateway = cfg.setdefault('gateway', {})
 gateway['mode'] = 'local'
 gateway['controlUi'] = {
     'allowInsecureAuth': True,
-    'dangerouslyDisableDeviceAuth': True,
+    'dangerouslyDisableDeviceAuth': False,
     'allowedOrigins': origins,
 }
 gateway['trustedProxies'] = ['127.0.0.1', '::1']
